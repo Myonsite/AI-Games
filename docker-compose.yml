@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  tic-tac-toe:
+    build: .
+    container_name: tic-tac-toe-game
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - tic-tac-toe-network
+
+networks:
+  tic-tac-toe-network:
+    driver: bridge 
