@@ -933,7 +933,7 @@
             }
         };
 
-        // Tic Tac Toe Game Logic
+        // Professional Tic Tac Toe Game Logic with Advanced AI
         const TicTacToe = {
             board: Array(9).fill(''),
             currentPlayer: 'X',
@@ -943,11 +943,45 @@
             humanPlayer: 'X',
             aiPlayer: 'O',
             scores: { X: 0, O: 0, draw: 0 },
+            gameStats: {
+                gamesPlayed: 0,
+                totalMoves: 0,
+                averageGameLength: 0,
+                winStreaks: { current: 0, best: 0 },
+                aiWins: { easy: 0, medium: 0, hard: 0 },
+                playerMoves: [],
+                sessionStartTime: Date.now()
+            },
+            aiPersonalities: {
+                easy: {
+                    name: 'Rookie',
+                    description: 'Makes random moves with occasional strategy',
+                    errorRate: 0.7,
+                    thinkingTime: 500,
+                    personality: 'Makes beginner mistakes'
+                },
+                medium: {
+                    name: 'Strategist',
+                    description: 'Balances offense and defense',
+                    errorRate: 0.3,
+                    thinkingTime: 800,
+                    personality: 'Thinks tactically'
+                },
+                hard: {
+                    name: 'Grandmaster',
+                    description: 'Perfect play with advanced analysis',
+                    errorRate: 0.0,
+                    thinkingTime: 1200,
+                    personality: 'Plays flawlessly'
+                }
+            },
             winningConditions: [
                 [0, 1, 2], [3, 4, 5], [6, 7, 8],
                 [0, 3, 6], [1, 4, 7], [2, 5, 8],
                 [0, 4, 8], [2, 4, 6]
             ],
+            moveHistory: [],
+            soundEnabled: true,
 
             showModes() {
                 document.getElementById('ttt-game-modes').style.display = 'block';
@@ -963,13 +997,19 @@
                 
                 const modeTexts = {
                     'pvp': 'Player vs Player',
-                    'easy': 'vs AI (Easy)',
-                    'medium': 'vs AI (Medium)',
-                    'hard': 'vs AI (Hard)'
+                    'easy': `vs ${this.aiPersonalities.easy.name} (${this.aiPersonalities.easy.description})`,
+                    'medium': `vs ${this.aiPersonalities.medium.name} (${this.aiPersonalities.medium.description})`,
+                    'hard': `vs ${this.aiPersonalities.hard.name} (${this.aiPersonalities.hard.description})`
                 };
                 
-                document.getElementById('tic-tac-toe-mode').textContent = modeTexts[mode];
+                document.getElementById('tic-tac-toe-mode').innerHTML = modeTexts[mode];
                 document.getElementById('ttt-hint-btn').style.display = this.isAIGame ? 'inline-block' : 'none';
+                
+                // Reset game stats for new mode
+                this.gameStats.gamesPlayed = 0;
+                this.gameStats.totalMoves = 0;
+                this.gameStats.winStreaks.current = 0;
+                this.gameStats.sessionStartTime = Date.now();
                 
                 this.resetGame();
             },
@@ -978,8 +1018,33 @@
                 if (!this.gameActive || this.board[index] !== '') return;
                 
                 this.board[index] = this.currentPlayer;
-                document.querySelectorAll('#ttt-game-board .cell')[index].textContent = this.currentPlayer;
-                document.querySelectorAll('#ttt-game-board .cell')[index].style.color = this.currentPlayer === 'X' ? '#e53e3e' : '#3182ce';
+                const cell = document.querySelectorAll('#ttt-game-board .cell')[index];
+                
+                // Professional move animation with liquid glass effect
+                cell.style.transform = 'scale(0)';
+                cell.style.transition = 'transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55)';
+                
+                setTimeout(() => {
+                    cell.textContent = this.currentPlayer;
+                    cell.style.color = this.currentPlayer === 'X' ? '#e53e3e' : '#3182ce';
+                    cell.style.textShadow = '0 0 10px currentColor';
+                    cell.style.transform = 'scale(1)';
+                    
+                    // Add glow effect
+                    cell.style.boxShadow = `0 0 20px ${this.currentPlayer === 'X' ? '#e53e3e' : '#3182ce'}40`;
+                    setTimeout(() => {
+                        cell.style.boxShadow = '';
+                        cell.style.textShadow = '0 2px 8px rgba(0, 0, 0, 0.5)';
+                    }, 500);
+                }, 50);
+                
+                // Record move in history
+                if (!this.isAIGame || this.currentPlayer === this.humanPlayer) {
+                    this.addMoveToHistory(index, this.currentPlayer);
+                }
+                
+                // Play sound feedback
+                this.playSound('move');
                 
                 if (this.checkWinner()) {
                     this.handleGameEnd('win');
@@ -994,32 +1059,46 @@
                 this.switchPlayer();
                 
                 if (this.isAIGame && this.currentPlayer === this.aiPlayer) {
+                    const personality = this.aiPersonalities[this.gameMode];
                     document.getElementById('ttt-ai-thinking').style.display = 'block';
+                    document.getElementById('ttt-ai-thinking').innerHTML = `🤖 ${personality.name} is ${personality.personality.toLowerCase()}...`;
+                    
                     setTimeout(() => {
                         this.makeAIMove();
                         document.getElementById('ttt-ai-thinking').style.display = 'none';
-                    }, 800);
+                    }, personality.thinkingTime);
                 }
             },
 
             makeAIMove() {
                 if (!this.gameActive) return;
                 
+                const personality = this.aiPersonalities[this.gameMode];
+                const shouldMakeError = Math.random() < personality.errorRate;
+                
                 let move;
-                switch (this.gameMode) {
-                    case 'easy':
-                        move = this.getRandomMove();
-                        break;
-                    case 'medium':
-                        move = this.getMediumMove();
-                        break;
-                    case 'hard':
-                        move = this.getBestMove();
-                        break;
+                if (shouldMakeError && this.gameMode !== 'hard') {
+                    // Make a suboptimal move based on personality
+                    move = this.gameMode === 'easy' ? this.getRandomMove() : this.getMediumMove();
+                } else {
+                    // Make optimal move
+                    switch (this.gameMode) {
+                        case 'easy':
+                            move = Math.random() < 0.3 ? this.getBestMoveAlphaBeta() : this.getRandomMove();
+                            break;
+                        case 'medium':
+                            move = this.getMediumMove();
+                            break;
+                        case 'hard':
+                            move = this.getBestMoveAlphaBeta();
+                            break;
+                    }
                 }
                 
                 if (move !== -1) {
+                    this.addMoveToHistory(move, this.aiPlayer);
                     this.makeMove(move);
+                    this.playSound('ai-move');
                 }
             },
 
@@ -1046,6 +1125,126 @@
                 }
                 
                 return bestMove;
+            },
+
+            // Advanced AI with Alpha-Beta Pruning for Professional Performance
+            getBestMoveAlphaBeta() {
+                let bestScore = -Infinity;
+                let bestMove = -1;
+                const depth = 9; // Maximum search depth for perfect play
+                
+                for (let i = 0; i < 9; i++) {
+                    if (this.board[i] === '') {
+                        this.board[i] = this.aiPlayer;
+                        let score = this.minimaxAlphaBeta(this.board, depth - 1, -Infinity, Infinity, false);
+                        this.board[i] = '';
+                        
+                        if (score > bestScore) {
+                            bestScore = score;
+                            bestMove = i;
+                        }
+                    }
+                }
+                
+                return bestMove;
+            },
+
+            // Minimax with Alpha-Beta Pruning - Professional AI Algorithm
+            minimaxAlphaBeta(boardState, depth, alpha, beta, isMaximizing) {
+                const result = this.checkWinnerForBoard(boardState);
+                
+                if (result === this.aiPlayer) return 10 + depth;
+                if (result === this.humanPlayer) return -10 - depth;
+                if (boardState.every(cell => cell !== '') || depth === 0) return 0;
+                
+                if (isMaximizing) {
+                    let maxEval = -Infinity;
+                    for (let i = 0; i < 9; i++) {
+                        if (boardState[i] === '') {
+                            boardState[i] = this.aiPlayer;
+                            const eval = this.minimaxAlphaBeta(boardState, depth - 1, alpha, beta, false);
+                            boardState[i] = '';
+                            maxEval = Math.max(maxEval, eval);
+                            alpha = Math.max(alpha, eval);
+                            if (beta <= alpha) break; // Alpha-beta pruning
+                        }
+                    }
+                    return maxEval;
+                } else {
+                    let minEval = Infinity;
+                    for (let i = 0; i < 9; i++) {
+                        if (boardState[i] === '') {
+                            boardState[i] = this.humanPlayer;
+                            const eval = this.minimaxAlphaBeta(boardState, depth - 1, alpha, beta, true);
+                            boardState[i] = '';
+                            minEval = Math.min(minEval, eval);
+                            beta = Math.min(beta, eval);
+                            if (beta <= alpha) break; // Alpha-beta pruning
+                        }
+                    }
+                    return minEval;
+                }
+            },
+
+            // Professional Move History and Analytics
+            addMoveToHistory(move, player) {
+                this.moveHistory.push({
+                    move: move,
+                    player: player,
+                    timestamp: Date.now(),
+                    boardState: [...this.board]
+                });
+                this.gameStats.totalMoves++;
+            },
+
+            // Professional Sound System
+            playSound(type) {
+                if (!this.soundEnabled) return;
+                
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                switch (type) {
+                    case 'move':
+                        oscillator.frequency.setValueAtTime(800, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+                        break;
+                    case 'ai-move':
+                        oscillator.frequency.setValueAtTime(600, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.08, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.15);
+                        break;
+                    case 'win':
+                        // Victory fanfare
+                        const notes = [523, 659, 783, 1046];
+                        notes.forEach((freq, i) => {
+                            setTimeout(() => {
+                                const osc = audioContext.createOscillator();
+                                const gain = audioContext.createGain();
+                                osc.connect(gain);
+                                gain.connect(audioContext.destination);
+                                osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+                                gain.gain.setValueAtTime(0.1, audioContext.currentTime);
+                                gain.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                                osc.start();
+                                osc.stop(audioContext.currentTime + 0.3);
+                            }, i * 100);
+                        });
+                        return;
+                    case 'draw':
+                        oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.5);
+                        break;
+                }
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.2);
             },
 
             minimax(boardState, depth, isMaximizing) {
@@ -1150,33 +1349,101 @@
 
             handleGameEnd(result) {
                 this.gameActive = false;
+                this.gameStats.gamesPlayed++;
                 const statusElement = document.getElementById('ttt-game-status');
                 
                 if (result === 'win') {
                     this.scores[this.currentPlayer]++;
                     
+                    // Professional victory animation
+                    this.celebrateWin();
+                    this.playSound('win');
+                    
+                    // Update analytics
                     if (this.isAIGame) {
                         if (this.currentPlayer === this.humanPlayer) {
-                            statusElement.textContent = `🎉 You Win! Great job!`;
+                            this.gameStats.winStreaks.current++;
+                            this.gameStats.winStreaks.best = Math.max(
+                                this.gameStats.winStreaks.best, 
+                                this.gameStats.winStreaks.current
+                            );
+                            statusElement.innerHTML = `🎉 Victory! Win Streak: ${this.gameStats.winStreaks.current}`;
                         } else {
-                            statusElement.textContent = `🤖 AI Wins! Try again!`;
+                            this.gameStats.winStreaks.current = 0;
+                            this.gameStats.aiWins[this.gameMode]++;
+                            const personality = this.aiPersonalities[this.gameMode];
+                            statusElement.innerHTML = `🤖 ${personality.name} Wins! ${personality.description}`;
                         }
                     } else {
-                        statusElement.textContent = `🎉 Player ${this.currentPlayer} Wins!`;
+                        statusElement.innerHTML = `🎉 Player ${this.currentPlayer} Wins!`;
                     }
                     
                     statusElement.style.color = '#22c55e';
                 } else if (result === 'draw') {
                     this.scores.draw++;
-                    statusElement.textContent = "🤝 It's a Draw!";
+                    this.gameStats.winStreaks.current = 0;
+                    statusElement.textContent = "🤝 Strategic Draw!";
                     statusElement.style.color = '#f59e0b';
+                    this.playSound('draw');
                 }
                 
+                // Update game statistics
+                this.gameStats.averageGameLength = this.gameStats.totalMoves / this.gameStats.gamesPlayed;
                 this.updateScoreDisplay();
+                this.updateAnalytics();
                 
                 setTimeout(() => {
                     this.resetGame();
-                }, 3000);
+                }, 4000);
+            },
+
+            // Professional victory celebration with particle effects
+            celebrateWin() {
+                const board = document.getElementById('ttt-game-board');
+                
+                // Create celebration particles
+                for (let i = 0; i < 20; i++) {
+                    const particle = document.createElement('div');
+                    particle.style.position = 'absolute';
+                    particle.style.width = '6px';
+                    particle.style.height = '6px';
+                    particle.style.backgroundColor = this.currentPlayer === 'X' ? '#e53e3e' : '#3182ce';
+                    particle.style.borderRadius = '50%';
+                    particle.style.pointerEvents = 'none';
+                    particle.style.zIndex = '1000';
+                    
+                    const startX = Math.random() * board.offsetWidth;
+                    const startY = Math.random() * board.offsetHeight;
+                    particle.style.left = startX + 'px';
+                    particle.style.top = startY + 'px';
+                    
+                    board.appendChild(particle);
+                    
+                    // Animate particle
+                    particle.animate([
+                        { transform: 'translate(0, 0) scale(1)', opacity: 1 },
+                        { 
+                            transform: `translate(${(Math.random() - 0.5) * 200}px, ${-100 - Math.random() * 100}px) scale(0)`, 
+                            opacity: 0 
+                        }
+                    ], {
+                        duration: 1000 + Math.random() * 500,
+                        easing: 'cubic-bezier(0.25, 0.46, 0.45, 0.94)'
+                    }).addEventListener('finish', () => particle.remove());
+                }
+            },
+
+            // Professional analytics display
+            updateAnalytics() {
+                const sessionTime = (Date.now() - this.gameStats.sessionStartTime) / 1000 / 60; // minutes
+                console.log('🎮 Professional Tic Tac Toe Analytics:', {
+                    gamesPlayed: this.gameStats.gamesPlayed,
+                    averageGameLength: this.gameStats.averageGameLength.toFixed(1),
+                    winStreak: this.gameStats.winStreaks.current,
+                    bestWinStreak: this.gameStats.winStreaks.best,
+                    sessionDuration: sessionTime.toFixed(1) + ' minutes',
+                    aiPerformance: this.gameStats.aiWins
+                });
             },
 
             switchPlayer() {
@@ -1243,15 +1510,43 @@
             }
         };
 
-        // Chess Game Logic
+        // Professional Chess Engine with Advanced Features
         const Chess = {
             board: [],
             currentPlayer: 'white',
             selectedSquare: null,
             possibleMoves: [],
             moveCount: 0,
-            capturedPieces: 0,
+            capturedPieces: { white: [], black: [] },
             aiEnabled: false,
+            gameMode: 'human', // human, ai-easy, ai-medium, ai-hard
+            
+            // Professional chess state tracking
+            gameState: {
+                whiteKingMoved: false,
+                blackKingMoved: false,
+                whiteRooksMoved: { queenside: false, kingside: false },
+                blackRooksMoved: { queenside: false, kingside: false },
+                enPassantSquare: null,
+                inCheck: false,
+                checkmate: false,
+                stalemate: false,
+                fiftyMoveRule: 0,
+                moveHistory: [],
+                positionHistory: []
+            },
+
+            // Professional piece values for AI evaluation
+            pieceValues: {
+                'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000
+            },
+
+            // Professional opening book
+            openingBook: {
+                'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq -': ['e2e4', 'd2d4', 'g1f3', 'c2c4'],
+                'rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq e3': ['e7e5', 'c7c5', 'e7e6', 'c7c6'],
+                'rnbqkbnr/pppppppp/8/8/3P4/8/PPP1PPPP/RNBQKBNR b KQkq d3': ['d7d5', 'g8f6', 'e7e6', 'c7c5']
+            },
 
             pieces: {
                 white: {
@@ -1262,6 +1557,30 @@
                     king: '♚', queen: '♛', rook: '♜', 
                     bishop: '♝', knight: '♞', pawn: '♟'
                 }
+            },
+
+            // Professional piece-square tables for positional evaluation
+            pieceSquareTables: {
+                'p': [ // Pawn
+                    0,  0,  0,  0,  0,  0,  0,  0,
+                    50, 50, 50, 50, 50, 50, 50, 50,
+                    10, 10, 20, 30, 30, 20, 10, 10,
+                    5,  5, 10, 25, 25, 10,  5,  5,
+                    0,  0,  0, 20, 20,  0,  0,  0,
+                    5, -5,-10,  0,  0,-10, -5,  5,
+                    5, 10, 10,-20,-20, 10, 10,  5,
+                    0,  0,  0,  0,  0,  0,  0,  0
+                ],
+                'n': [ // Knight
+                    -50,-40,-30,-30,-30,-30,-40,-50,
+                    -40,-20,  0,  0,  0,  0,-20,-40,
+                    -30,  0, 10, 15, 15, 10,  0,-30,
+                    -30,  5, 15, 20, 20, 15,  5,-30,
+                    -30,  0, 15, 20, 20, 15,  0,-30,
+                    -30,  5, 10, 15, 15, 10,  5,-30,
+                    -40,-20,  0,  5,  5,  0,-20,-40,
+                    -50,-40,-30,-30,-30,-30,-40,-50
+                ]
             },
 
             initGame() {
@@ -1486,23 +1805,193 @@
                 return row >= 0 && row < 8 && col >= 0 && col < 8;
             },
 
-            makeMove(fromRow, fromCol, toRow, toCol) {
-                if (this.board[toRow][toCol]) {
-                    this.capturedPieces++;
+            makeMove(fromRow, fromCol, toRow, toCol, promotionPiece = null) {
+                const piece = this.board[fromRow][fromCol];
+                const capturedPiece = this.board[toRow][toCol];
+                const isCapture = !!capturedPiece;
+                
+                // Generate algebraic notation
+                const moveNotation = this.generateAlgebraicNotation(fromRow, fromCol, toRow, toCol, piece, isCapture, promotionPiece);
+                
+                // Handle special moves
+                this.handleSpecialMoves(fromRow, fromCol, toRow, toCol, piece);
+                
+                // Update captured pieces
+                if (capturedPiece) {
+                    const capturedColor = capturedPiece === capturedPiece.toUpperCase() ? 'white' : 'black';
+                    this.capturedPieces[capturedColor === 'white' ? 'black' : 'white'].push(capturedPiece);
                 }
                 
-                this.board[toRow][toCol] = this.board[fromRow][fromCol];
+                // Make the move
+                this.board[toRow][toCol] = piece;
                 this.board[fromRow][fromCol] = null;
+                
+                // Handle pawn promotion
+                if (piece.toLowerCase() === 'p' && (toRow === 0 || toRow === 7)) {
+                    this.board[toRow][toCol] = promotionPiece || (this.currentPlayer === 'white' ? 'Q' : 'q');
+                }
+                
+                // Update game state
+                this.updateGameStateAfterMove(fromRow, fromCol, toRow, toCol, piece);
+                
+                // Record move in history
+                this.gameState.moveHistory.push({
+                    from: { row: fromRow, col: fromCol },
+                    to: { row: toRow, col: toCol },
+                    piece: piece,
+                    captured: capturedPiece,
+                    notation: moveNotation,
+                    timestamp: Date.now()
+                });
                 
                 this.moveCount++;
                 this.currentPlayer = this.currentPlayer === 'white' ? 'black' : 'white';
                 
+                // Check for check, checkmate, stalemate
+                this.analyzeGameState();
+                
                 this.renderBoard();
                 this.updateStatus();
+                this.playChessSound(isCapture ? 'capture' : 'move');
                 
                 if (this.aiEnabled && this.currentPlayer === 'black') {
-                    setTimeout(() => this.makeAIMove(), 1000);
+                    setTimeout(() => this.makeAIMove(), 1200);
                 }
+            },
+
+            // Professional algebraic notation generator
+            generateAlgebraicNotation(fromRow, fromCol, toRow, toCol, piece, isCapture, promotionPiece) {
+                const files = 'abcdefgh';
+                const ranks = '87654321';
+                
+                const fromSquare = files[fromCol] + ranks[fromRow];
+                const toSquare = files[toCol] + ranks[toRow];
+                
+                let notation = '';
+                
+                if (piece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
+                    // Castling
+                    notation = toCol > fromCol ? 'O-O' : 'O-O-O';
+                } else {
+                    // Regular move
+                    if (piece.toLowerCase() !== 'p') {
+                        notation += piece.toUpperCase();
+                    }
+                    
+                    if (isCapture) {
+                        if (piece.toLowerCase() === 'p') {
+                            notation += files[fromCol];
+                        }
+                        notation += 'x';
+                    }
+                    
+                    notation += toSquare;
+                    
+                    if (promotionPiece) {
+                        notation += '=' + promotionPiece.toUpperCase();
+                    }
+                }
+                
+                return notation;
+            },
+
+            // Handle castling, en passant, and other special moves
+            handleSpecialMoves(fromRow, fromCol, toRow, toCol, piece) {
+                // Castling
+                if (piece.toLowerCase() === 'k' && Math.abs(toCol - fromCol) === 2) {
+                    const isKingside = toCol > fromCol;
+                    const rookFromCol = isKingside ? 7 : 0;
+                    const rookToCol = isKingside ? 5 : 3;
+                    
+                    // Move the rook
+                    this.board[fromRow][rookToCol] = this.board[fromRow][rookFromCol];
+                    this.board[fromRow][rookFromCol] = null;
+                }
+                
+                // En passant capture
+                if (piece.toLowerCase() === 'p' && this.gameState.enPassantSquare && 
+                    toRow === this.gameState.enPassantSquare.row && toCol === this.gameState.enPassantSquare.col) {
+                    const capturedPawnRow = this.currentPlayer === 'white' ? toRow + 1 : toRow - 1;
+                    this.board[capturedPawnRow][toCol] = null;
+                }
+            },
+
+            // Update game state tracking
+            updateGameStateAfterMove(fromRow, fromCol, toRow, toCol, piece) {
+                // Update castling rights
+                if (piece.toLowerCase() === 'k') {
+                    if (this.currentPlayer === 'white') {
+                        this.gameState.whiteKingMoved = true;
+                    } else {
+                        this.gameState.blackKingMoved = true;
+                    }
+                }
+                
+                if (piece.toLowerCase() === 'r') {
+                    if (this.currentPlayer === 'white') {
+                        if (fromCol === 0) this.gameState.whiteRooksMoved.queenside = true;
+                        if (fromCol === 7) this.gameState.whiteRooksMoved.kingside = true;
+                    } else {
+                        if (fromCol === 0) this.gameState.blackRooksMoved.queenside = true;
+                        if (fromCol === 7) this.gameState.blackRooksMoved.kingside = true;
+                    }
+                }
+                
+                // Update en passant square
+                this.gameState.enPassantSquare = null;
+                if (piece.toLowerCase() === 'p' && Math.abs(toRow - fromRow) === 2) {
+                    this.gameState.enPassantSquare = {
+                        row: (fromRow + toRow) / 2,
+                        col: fromCol
+                    };
+                }
+                
+                // Update fifty-move rule
+                if (piece.toLowerCase() === 'p' || this.board[toRow][toCol]) {
+                    this.gameState.fiftyMoveRule = 0;
+                } else {
+                    this.gameState.fiftyMoveRule++;
+                }
+            },
+
+            // Professional game state analysis
+            analyzeGameState() {
+                this.gameState.inCheck = this.isInCheck(this.currentPlayer);
+                
+                const legalMoves = this.getAllLegalMoves(this.currentPlayer);
+                this.gameState.checkmate = this.gameState.inCheck && legalMoves.length === 0;
+                this.gameState.stalemate = !this.gameState.inCheck && legalMoves.length === 0;
+            },
+
+            // Professional chess sound system
+            playChessSound(type) {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                
+                switch (type) {
+                    case 'move':
+                        oscillator.frequency.setValueAtTime(700, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                        break;
+                    case 'capture':
+                        oscillator.frequency.setValueAtTime(400, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.15, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.3);
+                        break;
+                    case 'check':
+                        oscillator.frequency.setValueAtTime(1000, audioContext.currentTime);
+                        gainNode.gain.setValueAtTime(0.12, audioContext.currentTime);
+                        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.4);
+                        break;
+                }
+                
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.5);
             },
 
             makeAIMove() {
@@ -1532,10 +2021,124 @@
                 document.getElementById('chess-current-player').textContent = 
                     this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1);
                 document.getElementById('chess-move-count').textContent = this.moveCount;
-                document.getElementById('chess-captured').textContent = this.capturedPieces;
+                
+                const totalCaptured = this.capturedPieces.white.length + this.capturedPieces.black.length;
+                document.getElementById('chess-captured').textContent = totalCaptured;
                 
                 document.getElementById('chess-current-player').style.color = 
                     this.currentPlayer === 'white' ? '#e2e8f0' : '#94a3b8';
+                
+                // Update game status with professional analysis
+                const statusElement = document.getElementById('chess-status');
+                if (this.gameState.checkmate) {
+                    const winner = this.currentPlayer === 'white' ? 'Black' : 'White';
+                    statusElement.innerHTML = `🏆 Checkmate! ${winner} Wins!`;
+                    statusElement.style.color = '#22c55e';
+                    this.playChessSound('check');
+                } else if (this.gameState.stalemate) {
+                    statusElement.innerHTML = "🤝 Stalemate - It's a Draw!";
+                    statusElement.style.color = '#f59e0b';
+                } else if (this.gameState.inCheck) {
+                    statusElement.innerHTML = `⚠️ ${this.currentPlayer.charAt(0).toUpperCase() + this.currentPlayer.slice(1)} King is in Check!`;
+                    statusElement.style.color = '#ef4444';
+                    this.playChessSound('check');
+                } else {
+                    statusElement.innerHTML = this.getLastMoveNotation();
+                    statusElement.style.color = 'rgba(255, 255, 255, 0.9)';
+                }
+            },
+
+            // Display last move in algebraic notation
+            getLastMoveNotation() {
+                const lastMove = this.gameState.moveHistory[this.gameState.moveHistory.length - 1];
+                if (lastMove) {
+                    return `Last Move: ${lastMove.notation}`;
+                }
+                return 'Ready to Play Professional Chess';
+            },
+
+            // Check if a king is in check
+            isInCheck(color) {
+                const kingPos = this.findKing(color);
+                if (!kingPos) return false;
+                
+                const opponentColor = color === 'white' ? 'black' : 'white';
+                return this.isSquareAttacked(kingPos.row, kingPos.col, opponentColor);
+            },
+
+            // Find king position
+            findKing(color) {
+                const kingSymbol = color === 'white' ? 'K' : 'k';
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        if (this.board[row][col] === kingSymbol) {
+                            return { row, col };
+                        }
+                    }
+                }
+                return null;
+            },
+
+            // Check if a square is attacked by opponent
+            isSquareAttacked(row, col, byColor) {
+                for (let r = 0; r < 8; r++) {
+                    for (let c = 0; c < 8; c++) {
+                        const piece = this.board[r][c];
+                        if (piece && this.isPieceColor(piece, byColor)) {
+                            const moves = this.getPossibleMoves(r, c);
+                            if (moves.some(move => move.row === row && move.col === col)) {
+                                return true;
+                            }
+                        }
+                    }
+                }
+                return false;
+            },
+
+            // Check piece color
+            isPieceColor(piece, color) {
+                return color === 'white' ? piece === piece.toUpperCase() : piece === piece.toLowerCase();
+            },
+
+            // Get all legal moves for a color
+            getAllLegalMoves(color) {
+                const moves = [];
+                for (let row = 0; row < 8; row++) {
+                    for (let col = 0; col < 8; col++) {
+                        const piece = this.board[row][col];
+                        if (piece && this.isPieceColor(piece, color)) {
+                            const pieceMoves = this.getLegalMovesForPiece(row, col);
+                            moves.push(...pieceMoves);
+                        }
+                    }
+                }
+                return moves;
+            },
+
+            // Get legal moves for a specific piece (excluding moves that leave king in check)
+            getLegalMovesForPiece(row, col) {
+                const possibleMoves = this.getPossibleMoves(row, col);
+                const legalMoves = [];
+                
+                for (const move of possibleMoves) {
+                    // Make temporary move
+                    const originalPiece = this.board[move.row][move.col];
+                    const movingPiece = this.board[row][col];
+                    this.board[move.row][move.col] = movingPiece;
+                    this.board[row][col] = null;
+                    
+                    // Check if this move leaves own king in check
+                    const pieceColor = this.isPieceColor(movingPiece, 'white') ? 'white' : 'black';
+                    if (!this.isInCheck(pieceColor)) {
+                        legalMoves.push(move);
+                    }
+                    
+                    // Restore board
+                    this.board[row][col] = movingPiece;
+                    this.board[move.row][move.col] = originalPiece;
+                }
+                
+                return legalMoves;
             },
 
             newGame() {
