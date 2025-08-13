@@ -1,0 +1,21 @@
+{
+  "name": "myonsite-repo-checker",
+  "version": "1.0.0",
+  "description": "A tool to check all repositories in the Myonsite organization",
+  "main": "check_myonsite_repos.js",
+  "scripts": {
+    "start": "node check_myonsite_repos.js",
+    "check": "node check_myonsite_repos.js"
+  },
+  "keywords": [
+    "github",
+    "organization",
+    "repositories",
+    "myonsite"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}
